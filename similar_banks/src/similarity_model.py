@@ -99,6 +99,10 @@ class SimilarBankRecommender:
         ldr_threshold = float(self.driver_thresholds["loan_to_deposit_abs_diff_max"])
         growth_threshold = float(self.driver_thresholds["growth_abs_diff_max"])
         overlap_threshold = float(self.driver_thresholds["overlap_for_strong_geo"])
+        broad_footprint_min = float(self.driver_thresholds.get("broad_footprint_min_cbsa", 20))
+        broad_footprint_ratio_min = float(
+            self.driver_thresholds.get("broad_footprint_count_ratio_min", 0.55)
+        )
 
         size_diff = _safe_pct_diff(subject["total_assets"], peer["total_assets"])
         if np.isfinite(size_diff):
@@ -171,7 +175,11 @@ class SimilarBankRecommender:
                 0.95,
                 f"Strong market overlap ({int(geo_diag['shared_markets'])} shared CBSAs)",
             )
-        elif geo_diag["markets_a"] >= 20 and geo_diag["markets_b"] >= 20:
+        elif (
+            geo_diag["markets_a"] >= broad_footprint_min
+            and geo_diag["markets_b"] >= broad_footprint_min
+            and geo_diag.get("market_count_similarity", 0.0) >= broad_footprint_ratio_min
+        ):
             add_reason(
                 0.6,
                 f"Both broad-footprint banks ({int(geo_diag['markets_a'])} vs {int(geo_diag['markets_b'])} CBSAs)",

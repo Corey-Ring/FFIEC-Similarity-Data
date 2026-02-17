@@ -21,6 +21,24 @@ Similar-bank recommendation system for FDIC-insured institutions, built for quar
 - Increased emphasis on lending composition in similarity distance via configurable `loan_mix_*` weights.
 - Lowered holding-company categorical weight (`holding_company: 0.25`).
 - Improved `similarity_drivers` text to use specific numeric comparisons (lending mix, deposit mix, ratios, growth, geographic overlap), replacing generic fallback phrases.
+- Updated CBSA similarity logic to account for footprint scale differences:
+  - Added `market_count_similarity = min(cbsa_count_a, cbsa_count_b) / max(cbsa_count_a, cbsa_count_b)` to geographic scoring.
+  - Added `market_count_weight` to geography config (in addition to overlap and concentration).
+  - Tightened broad-footprint driver rule so it only appears when footprint counts are reasonably comparable.
+
+## CBSA Similarity Rules
+
+- Geographic score now blends:
+  - weighted market overlap (share-based Jaccard),
+  - concentration similarity (HHI-based),
+  - market-count similarity (CBSA footprint scale match).
+- Current geography config defaults in `similar_banks/config/feature_weights.yaml`:
+  - `market_overlap_weight: 0.70`
+  - `concentration_weight: 0.10`
+  - `market_count_weight: 0.20`
+- Broad-footprint driver threshold defaults:
+  - `broad_footprint_min_cbsa: 20`
+  - `broad_footprint_count_ratio_min: 0.55`
 
 ## Project Structure
 

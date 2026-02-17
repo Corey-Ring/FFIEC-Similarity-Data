@@ -29,6 +29,7 @@ class GeographicSimilarityEngine:
         market_col = geo["market_code"]
         self.overlap_weight = float(geography_config["market_overlap_weight"])
         self.concentration_weight = float(geography_config["concentration_weight"])
+        self.market_count_weight = float(geography_config.get("market_count_weight", 0.0))
         self.both_missing_score = float(geography_config["both_missing_score"])
         self.one_missing_score = float(geography_config["one_missing_score"])
 
@@ -98,6 +99,7 @@ class GeographicSimilarityEngine:
                 "geo_score": self.both_missing_score,
                 "market_overlap": self.both_missing_score,
                 "concentration_similarity": self.both_missing_score,
+                "market_count_similarity": self.both_missing_score,
                 "shared_markets": 0.0,
                 "markets_a": 0.0,
                 "markets_b": 0.0,
@@ -109,6 +111,7 @@ class GeographicSimilarityEngine:
                 "geo_score": self.one_missing_score,
                 "market_overlap": self.one_missing_score,
                 "concentration_similarity": self.one_missing_score,
+                "market_count_similarity": self.one_missing_score,
                 "shared_markets": 0.0,
                 "markets_a": markets_a,
                 "markets_b": markets_b,
@@ -118,17 +121,30 @@ class GeographicSimilarityEngine:
             hhi_a = self.cert_hhi.get(cert_a or -1, 1.0)
             hhi_b = self.cert_hhi.get(cert_b or -1, 1.0)
             concentration_similarity = max(0.0, 1.0 - abs(hhi_a - hhi_b))
-            geo_score = (self.overlap_weight * overlap) + (
-                self.concentration_weight * concentration_similarity
+            markets_a = len(shares_a)
+            markets_b = len(shares_b)
+            max_markets = max(markets_a, markets_b, 1)
+            market_count_similarity = min(markets_a, markets_b) / max_markets
+            total_weight = (
+                self.overlap_weight + self.concentration_weight + self.market_count_weight
             )
+            if total_weight <= 0:
+                geo_score = overlap
+            else:
+                geo_score = (
+                    (self.overlap_weight * overlap)
+                    + (self.concentration_weight * concentration_similarity)
+                    + (self.market_count_weight * market_count_similarity)
+                ) / total_weight
             shared = len(set(shares_a).intersection(shares_b))
             result = {
                 "geo_score": geo_score,
                 "market_overlap": overlap,
                 "concentration_similarity": concentration_similarity,
+                "market_count_similarity": market_count_similarity,
                 "shared_markets": float(shared),
-                "markets_a": float(len(shares_a)),
-                "markets_b": float(len(shares_b)),
+                "markets_a": float(markets_a),
+                "markets_b": float(markets_b),
             }
 
         self._pair_cache[key] = result

@@ -8,8 +8,9 @@ weights:
   categorical: 0.10
 
 geography:
-  market_overlap_weight: 0.80
-  concentration_weight: 0.20
+  market_overlap_weight: 0.70
+  concentration_weight: 0.10
+  market_count_weight: 0.20
   both_missing_score: 0.50
   one_missing_score: 0.25
 
@@ -23,6 +24,8 @@ driver_thresholds:
   loan_to_deposit_abs_diff_max: 0.15
   growth_abs_diff_max: 0.03
   overlap_for_strong_geo: 0.50
+  broad_footprint_min_cbsa: 20
+  broad_footprint_count_ratio_min: 0.55
 
 numeric_feature_weights:
   log_total_assets: 1.20
