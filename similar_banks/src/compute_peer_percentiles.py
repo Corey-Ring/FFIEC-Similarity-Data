@@ -17,6 +17,7 @@ class MetricSpec:
     direction: str
     required_cols: tuple[str, ...]
     compute: Callable[[pd.DataFrame], pd.Series]
+    full_dollar: bool = False
 
 
 def _safe_div(numer: pd.Series, denom: pd.Series) -> pd.Series:
@@ -32,14 +33,24 @@ def _series(df: pd.DataFrame, column: str) -> pd.Series:
     return pd.to_numeric(df[column], errors="coerce")
 
 
+def _normalize_percent(series: pd.Series) -> pd.Series:
+    values = pd.to_numeric(series, errors="coerce")
+    if not values.notna().any():
+        return values
+    p95 = float(values.quantile(0.95))
+    if pd.notna(p95) and p95 > 2.0:
+        return values / 100.0
+    return values
+
+
 def _build_metric_specs() -> List[MetricSpec]:
     return [
         MetricSpec(
             slug="efficiency_ratio",
             label="Efficiency Ratio",
             direction="lower_better",
-            required_cols=("NONIX", "NIM", "NONII"),
-            compute=lambda df: _safe_div(_series(df, "NONIX"), _series(df, "NIM") + _series(df, "NONII")),
+            required_cols=("EEFFR",),
+            compute=lambda df: _normalize_percent(_series(df, "EEFFR")),
         ),
         MetricSpec(
             slug="net_interest_margin",
@@ -61,6 +72,7 @@ def _build_metric_specs() -> List[MetricSpec]:
             direction="lower_better",
             required_cols=("ELNLOS",),
             compute=lambda df: _series(df, "ELNLOS"),
+            full_dollar=True,
         ),
         MetricSpec(
             slug="net_operating_revenue",
@@ -68,6 +80,7 @@ def _build_metric_specs() -> List[MetricSpec]:
             direction="higher_better",
             required_cols=("NIM", "NONII"),
             compute=lambda df: _series(df, "NIM") + _series(df, "NONII"),
+            full_dollar=True,
         ),
         MetricSpec(
             slug="return_on_assets",
@@ -89,6 +102,7 @@ def _build_metric_specs() -> List[MetricSpec]:
             direction="higher_better",
             required_cols=("DEP",),
             compute=lambda df: _series(df, "DEP"),
+            full_dollar=True,
         ),
         MetricSpec(
             slug="total_loans_leases",
@@ -96,6 +110,7 @@ def _build_metric_specs() -> List[MetricSpec]:
             direction="higher_better",
             required_cols=("LNLSNET",),
             compute=lambda df: _series(df, "LNLSNET"),
+            full_dollar=True,
         ),
         MetricSpec(
             slug="deposits_per_fte",
@@ -103,6 +118,7 @@ def _build_metric_specs() -> List[MetricSpec]:
             direction="higher_better",
             required_cols=("DEP", "NUMEMP"),
             compute=lambda df: _safe_div(_series(df, "DEP"), _series(df, "NUMEMP")),
+            full_dollar=True,
         ),
         MetricSpec(
             slug="revenue_per_fte",
@@ -110,6 +126,7 @@ def _build_metric_specs() -> List[MetricSpec]:
             direction="higher_better",
             required_cols=("NIM", "NONII", "NUMEMP"),
             compute=lambda df: _safe_div(_series(df, "NIM") + _series(df, "NONII"), _series(df, "NUMEMP")),
+            full_dollar=True,
         ),
         MetricSpec(
             slug="assets",
@@ -117,6 +134,7 @@ def _build_metric_specs() -> List[MetricSpec]:
             direction="higher_better",
             required_cols=("ASSET",),
             compute=lambda df: _series(df, "ASSET"),
+            full_dollar=True,
         ),
         MetricSpec(
             slug="liabilities",
@@ -124,6 +142,7 @@ def _build_metric_specs() -> List[MetricSpec]:
             direction="lower_better",
             required_cols=("LIAB",),
             compute=lambda df: _series(df, "LIAB"),
+            full_dollar=True,
         ),
         MetricSpec(
             slug="earning_assets",
@@ -131,6 +150,7 @@ def _build_metric_specs() -> List[MetricSpec]:
             direction="higher_better",
             required_cols=("ERNAST",),
             compute=lambda df: _series(df, "ERNAST"),
+            full_dollar=True,
         ),
         MetricSpec(
             slug="net_income",
@@ -138,6 +158,7 @@ def _build_metric_specs() -> List[MetricSpec]:
             direction="higher_better",
             required_cols=("NETINC",),
             compute=lambda df: _series(df, "NETINC"),
+            full_dollar=True,
         ),
         MetricSpec(
             slug="net_interest_income",
@@ -145,6 +166,7 @@ def _build_metric_specs() -> List[MetricSpec]:
             direction="higher_better",
             required_cols=("NIM",),
             compute=lambda df: _series(df, "NIM"),
+            full_dollar=True,
         ),
         MetricSpec(
             slug="net_interest_expense",
@@ -152,6 +174,7 @@ def _build_metric_specs() -> List[MetricSpec]:
             direction="lower_better",
             required_cols=("EINTEXP",),
             compute=lambda df: _series(df, "EINTEXP"),
+            full_dollar=True,
         ),
         MetricSpec(
             slug="premises_fixed_assets_to_assets",
@@ -166,6 +189,7 @@ def _build_metric_specs() -> List[MetricSpec]:
             direction="lower_better",
             required_cols=("NONIX",),
             compute=lambda df: _series(df, "NONIX"),
+            full_dollar=True,
         ),
         MetricSpec(
             slug="non_interest_expense_pct_total_expenses",
@@ -275,6 +299,26 @@ def _default_output_path(base_file: Path) -> Path:
     return base_file.with_name(f"{stem}_PeerBenchmarks{suffix}")
 
 
+def _metric_output_columns(metric_specs: Iterable[MetricSpec]) -> list[str]:
+    cols: list[str] = []
+    for spec in metric_specs:
+        prefix = f"pb_{spec.slug}"
+        cols.extend(
+            [
+                f"{prefix}_value",
+                f"{prefix}_p25",
+                f"{prefix}_median",
+                f"{prefix}_p75",
+                f"{prefix}_delta_to_median",
+                f"{prefix}_status",
+                f"{prefix}_lag_flag",
+                f"{prefix}_peer_percentile_rank_pct",
+                f"{prefix}_effective_peer_count",
+            ]
+        )
+    return cols
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Attach peer p25/median/p75 percentile benchmarks to the 3-year bank file."
@@ -375,7 +419,10 @@ def main() -> int:
                 ", ".join(metric_missing),
             )
             continue
-        metric_frame[metric_col] = pd.to_numeric(spec.compute(latest), errors="coerce")
+        values = pd.to_numeric(spec.compute(latest), errors="coerce")
+        if spec.full_dollar:
+            values = values * 1000.0
+        metric_frame[metric_col] = values
         available_specs.append(spec)
 
     metric_lookup = metric_frame.set_index("RSSDID")
@@ -418,11 +465,13 @@ def main() -> int:
             status_col = f"pb_{spec.slug}_status"
             lag_col = f"pb_{spec.slug}_lag_flag"
             rank_col = f"pb_{spec.slug}_peer_percentile_rank_pct"
+            effective_peer_count_col = f"pb_{spec.slug}_effective_peer_count"
 
             subject_value = metric_lookup.at[subject_id, value_col] if subject_known else np.nan
             row[value_col] = subject_value
 
             peer_values = pd.to_numeric(peer_metrics[value_col], errors="coerce").dropna().to_numpy(dtype=float)
+            row[effective_peer_count_col] = int(peer_values.size)
             if peer_values.size < args.min_peer_count:
                 row[p25_col] = np.nan
                 row[med_col] = np.nan
@@ -455,9 +504,24 @@ def main() -> int:
 
         benchmark_rows.append(row)
 
-    benchmarks = pd.DataFrame(benchmark_rows)
-    lag_cols = [c for c in benchmarks.columns if c.endswith("_lag_flag")]
-    for col in lag_cols:
+    benchmark_cols_template = [
+        "pb_peer_count",
+        "pb_peer_benchmark_date",
+        "pb_subject_in_latest_snapshot",
+        *_metric_output_columns(metric_specs),
+    ]
+    if benchmark_rows:
+        benchmarks = pd.DataFrame(benchmark_rows)
+    else:
+        benchmarks = pd.DataFrame(columns=["RSSDID", *benchmark_cols_template])
+
+    int_cols = [
+        c
+        for c in benchmarks.columns
+        if c.endswith("_lag_flag") or c.endswith("_effective_peer_count")
+    ]
+    int_cols.extend([c for c in ("pb_peer_count", "pb_subject_in_latest_snapshot") if c in benchmarks.columns])
+    for col in int_cols:
         benchmarks[col] = benchmarks[col].astype("Int64")
 
     benchmark_cols = [c for c in benchmarks.columns if c != "RSSDID"]

@@ -49,6 +49,7 @@ Peer benchmarking output (standalone from similarity scoring):
   - `pb_<metric>_status`
   - `pb_<metric>_lag_flag`
   - `pb_<metric>_peer_percentile_rank_pct`
+  - `pb_<metric>_effective_peer_count`
 
 ## Current Data Inputs
 
@@ -93,6 +94,10 @@ Design choices:
   - `target_range` (for loan-to-deposit ratio)
 - Computes `peer_percentile_rank_pct` as a direction-adjusted rank from 0 to 100
   (higher percentile means stronger standing for that metric).
+- Uses normalized FFIEC `EEFFR` for efficiency ratio benchmarking.
+- Keeps mapped peer count as `pb_peer_count`; also stores metric-valid sample count as
+  `pb_<metric>_effective_peer_count`.
+- Amount-based `pb_` value/percentile/delta fields are scaled from FFIEC thousands to full dollars.
 
 Current metric set includes:
 - Efficiency Ratio

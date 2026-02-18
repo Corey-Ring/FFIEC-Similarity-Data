@@ -1,0 +1,1 @@
+banksuite_financials_last_3y_full_PeerBenchmarks.parquet filter=lfs diff=lfs merge=lfs -text
