@@ -38,6 +38,18 @@ The output is a ranked, explainable top-7 peer list for every bank, with drivers
 - `similarity_drivers`
 - `computed_date`
 
+Peer benchmarking output (standalone from similarity scoring):
+- `banksuite_financials_last_3y_full_PeerBenchmarks.parquet`
+- Adds peer-comparison columns with `pb_` prefix for each metric, including:
+  - `pb_<metric>_value`
+  - `pb_<metric>_p25`
+  - `pb_<metric>_median`
+  - `pb_<metric>_p75`
+  - `pb_<metric>_delta_to_median`
+  - `pb_<metric>_status`
+  - `pb_<metric>_lag_flag`
+  - `pb_<metric>_peer_percentile_rank_pct`
+
 ## Current Data Inputs
 
 - Financial history (12 quarters): `banksuite_financials_last_3y_full.parquet`
@@ -66,6 +78,43 @@ Composite score combines:
 - Categorical similarity
 
 Weights are configured in `similar_banks/config/feature_weights.yaml`.
+
+## Peer Benchmarking Extension
+
+`similar_banks/src/compute_peer_percentiles.py` computes metric-level peer benchmarks
+using the precomputed peer groups in `similar_banks/output/similar_banks.parquet`.
+
+Design choices:
+- Uses latest-quarter snapshot for benchmark calculations.
+- Leaves non-latest quarters blank by default (`--all-dates` can override).
+- Applies direction-aware lag logic:
+  - `higher_better`
+  - `lower_better`
+  - `target_range` (for loan-to-deposit ratio)
+- Computes `peer_percentile_rank_pct` as a direction-adjusted rank from 0 to 100
+  (higher percentile means stronger standing for that metric).
+
+Current metric set includes:
+- Efficiency Ratio
+- Net Interest Margin
+- Loan to Deposit Ratio
+- Loan Loss Provision
+- Net Operating Revenue
+- Return on Assets
+- Return on Equity
+- Total Deposits
+- Total Loans and Leases
+- Deposits per FTE
+- Revenue per FTE
+- Assets
+- Liabilities
+- Earning Assets
+- Net Income
+- Net Interest Income
+- Net Interest Expense
+- Premises Fixed Assets / Assets
+- Non-Interest Expense
+- Non-Interest Expense % of Total Expenses
 
 ## Recent Enhancements
 
@@ -122,6 +171,12 @@ Inspect similarity drivers for a bank:
 python -c "import pandas as pd; df=pd.read_parquet('similar_banks/output/similar_banks.parquet'); out=df[df.subject_idrssd==63069].sort_values('similar_rank')[['similar_rank','similar_idrssd','similar_name','similarity_score','similarity_drivers']]; print(out.to_string(index=False))"
 ```
 
+Generate peer benchmark columns (keeps source parquet unchanged):
+
+```powershell
+python similar_banks/src/compute_peer_percentiles.py --base-file banksuite_financials_last_3y_full.parquet --similarity-file similar_banks/output/similar_banks.parquet --output-file banksuite_financials_last_3y_full_PeerBenchmarks.parquet
+```
+
 ## Output and Quality Artifacts
 
 - `similar_banks/output/similar_banks.parquet`: final recommendation table
@@ -129,6 +184,7 @@ python -c "import pandas as pd; df=pd.read_parquet('similar_banks/output/similar
 - `similar_banks/output/data_quality_summary.md`: join coverage and key diagnostics
 - `similar_banks/output/missing_critical_features.csv`: rows with missing critical inputs
 - `similar_banks/output/feature_data_gaps.json`: unresolved feature gaps
+- `banksuite_financials_last_3y_full_PeerBenchmarks.parquet`: source financials plus `pb_` peer benchmark columns
 
 ## Validation and Governance
 
