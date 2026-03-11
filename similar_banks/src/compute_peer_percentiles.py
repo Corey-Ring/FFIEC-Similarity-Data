@@ -9,6 +9,11 @@ from typing import Callable, Iterable, List
 import numpy as np
 import pandas as pd
 
+try:
+    from .similarity_model import validate_similarity_output
+except ImportError:
+    from similarity_model import validate_similarity_output
+
 
 @dataclass(frozen=True)
 class MetricSpec:
@@ -437,6 +442,11 @@ def main() -> int:
     sim = sim.dropna(subset=["subject_idrssd", "similar_idrssd"]).copy()
     sim["subject_idrssd"] = sim["subject_idrssd"].astype("int64")
     sim["similar_idrssd"] = sim["similar_idrssd"].astype("int64")
+    validation = validate_similarity_output(sim)
+    if not validation.passed:
+        raise ValueError(
+            "Similarity file failed validation: " + "; ".join(validation.issues)
+        )
 
     peer_map = (
         sim.groupby("subject_idrssd", sort=False)["similar_idrssd"]

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+from dataclasses import asdict
 from datetime import date
 from pathlib import Path
 from typing import Any, Dict
@@ -10,9 +11,15 @@ from typing import Any, Dict
 import yaml
 
 from data_loader import load_source_data, prepare_snapshots
-from feature_engineering import engineer_bank_features
+from feature_engineering import engineer_bank_features, validate_feature_contract
 from geographic_similarity import GeographicSimilarityEngine
-from similarity_model import SimilarBankRecommender, gut_check_wells, spot_check
+from similarity_model import (
+    REQUIRED_DRIVER_FEATURES,
+    SimilarBankRecommender,
+    gut_check_wells,
+    spot_check,
+    validate_similarity_output,
+)
 
 
 def _load_yaml(path: Path) -> Dict[str, Any]:
@@ -84,6 +91,12 @@ def main() -> int:
         mappings=mappings,
         logger=logger,
     )
+    feature_set = validate_feature_contract(
+        feature_set=feature_set,
+        numeric_feature_weights=weights.get("numeric_feature_weights", {}),
+        driver_features=REQUIRED_DRIVER_FEATURES,
+        logger=logger,
+    )
 
     missing_path = args.output_dir / "missing_critical_features.csv"
     feature_set.missing_critical.to_csv(missing_path, index=False)
@@ -91,7 +104,14 @@ def main() -> int:
 
     data_gap_path = args.output_dir / "feature_data_gaps.json"
     with data_gap_path.open("w", encoding="utf-8") as f:
-        json.dump({"gaps": feature_set.data_gaps}, f, indent=2)
+        json.dump(
+            {
+                "gaps": [asdict(gap) for gap in feature_set.data_gaps],
+                "feature_status": [asdict(status) for status in feature_set.feature_status],
+            },
+            f,
+            indent=2,
+        )
     logger.info("Wrote data-gap report: %s", data_gap_path)
 
     ids = mappings["identifiers"]
@@ -121,7 +141,9 @@ def main() -> int:
     if feature_set.data_gaps:
         summary_lines.append("- Gap details:")
         for gap in feature_set.data_gaps:
-            summary_lines.append(f"  - {gap}")
+            summary_lines.append(
+                f"  - `{gap.feature_name}` ({gap.status}): {gap.reason}"
+            )
     summary_path = args.output_dir / "data_quality_summary.md"
     summary_path.write_text("\n".join(summary_lines), encoding="utf-8")
     logger.info("Wrote data quality summary: %s", summary_path)
@@ -138,6 +160,11 @@ def main() -> int:
         geo_engine=geo_engine,
         computed_date=date.today(),
     )
+    validation = validate_similarity_output(similar_df, expected_top_n=recommender.top_n)
+    if not validation.passed:
+        raise ValueError(
+            "Similarity output validation failed: " + "; ".join(validation.issues)
+        )
 
     output_path = args.output_dir / "similar_banks.parquet"
     similar_df.to_parquet(output_path, index=False)

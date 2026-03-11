@@ -16,7 +16,7 @@ The output is a ranked, explainable top-10 peer list for every bank, with driver
 
 ### 2) More Consistent Storytelling
 - Standardizes “apples-to-apples” comparisons in executive, investor, and client conversations.
-- Produces traceable similarity drivers (size, lending mix, deposit mix, growth, footprint overlap).
+- Produces traceable similarity drivers (size, lending mix, deposit structure, growth, footprint overlap).
 
 ### 3) Stronger Commercial and Risk Use Cases
 - Supports territory planning, competitive intelligence, and cross-sell prioritization.
@@ -28,7 +28,7 @@ The output is a ranked, explainable top-10 peer list for every bank, with driver
 
 ## What the Tool Produces
 
-`similar_banks/output/similar_banks.parquet` with:
+Generated locally in `similar_banks/output/` as a derived artifact:
 - `subject_idrssd`
 - `subject_name`
 - `similar_rank` (1-10)
@@ -38,7 +38,7 @@ The output is a ranked, explainable top-10 peer list for every bank, with driver
 - `similarity_drivers`
 - `computed_date`
 
-Peer benchmarking output (standalone from similarity scoring):
+Peer benchmarking output (standalone from similarity scoring, also derived locally):
 - `banksuite_financials_last_3y_full_PeerBenchmarks.parquet`
 - Adds peer-comparison columns with `pb_` prefix for each metric, including:
   - `pb_<metric>_value`
@@ -66,8 +66,8 @@ Primary joins:
 ### Feature Groups
 - Size and balance sheet structure (assets, deposits, loans, ratios)
 - Lending profile mix (CRE, C&I, residential, consumer, agricultural, construction)
-- Deposit mix (retail/business)
-- Growth trajectory (3Y YoY averages + CAGR-derived signals where available)
+- Deposit structure (core deposit share and non-interest deposit share)
+- Growth trajectory (3Y YoY averages, with optional additional growth features only when backed by source data)
 - Institutional attributes (charter/holding company/specialty)
 - Geographic footprint similarity (CBSA overlap + concentration + footprint scale)
 
@@ -154,7 +154,7 @@ Broad-footprint language is only shown when counts are reasonably comparable.
 - `similar_banks/config`: column mapping and weighting configuration
 - `similar_banks/tests`: validation helpers
 - `similar_banks/notebooks`: schema/data exploration notebook
-- `similar_banks/output`: generated artifacts
+- `similar_banks/output`: generated local artifacts (ignored in git)
 
 ## Run
 
@@ -184,15 +184,19 @@ python similar_banks/src/compute_peer_percentiles.py --base-file banksuite_finan
 
 ## Output and Quality Artifacts
 
-- `similar_banks/output/similar_banks.parquet`: final recommendation table
+- `similar_banks/output/similar_banks.parquet`: regenerated final recommendation table
 - `similar_banks/output/data_dictionary.csv`: profiled schema dictionary
 - `similar_banks/output/data_quality_summary.md`: join coverage and key diagnostics
 - `similar_banks/output/missing_critical_features.csv`: rows with missing critical inputs
-- `similar_banks/output/feature_data_gaps.json`: unresolved feature gaps
-- `banksuite_financials_last_3y_full_PeerBenchmarks.parquet`: source financials plus `pb_` peer benchmark columns
+- `similar_banks/output/feature_data_gaps.json`: structured feature-status and gap report
+- `banksuite_financials_last_3y_full_PeerBenchmarks.parquet`: regenerated source financials plus `pb_` peer benchmark columns
+
+These outputs are treated as derived artifacts and should be regenerated from the current code/config rather than treated as repo source of truth.
 
 ## Validation and Governance
 
 - Built-in gut check for major bank relationships (for example, Wells/JPM/BofA pattern check).
 - Config-driven weighting and threshold logic supports controlled tuning over time.
+- Feature engineering emits structured status for active, derived, and dropped features so missing weighted fields are explicit.
+- Similarity output is validated for peer count, self-peers, and contiguous ranks before it is written.
 - Quarterly refresh cadence supports stable reporting and auditability.

@@ -24,7 +24,6 @@ financial:
   total_loans: LNLSNET
   loan_to_deposit_ratio: LOAN_TO_DEPOSIT_RATIO
   asset_growth_cagr_5y: ASSET_GROWTH_CAGR_5Y
-  core_deposits_per_fte: COREDEP
   asset_size_bucket: ASSET_SIZE_BUCKET
 
 lending_profile:
@@ -54,10 +53,10 @@ lending_profile:
     - LNRECON5
     - LNRECONS
 
-deposit_mix:
-  retail:
+deposit_structure:
+  core_deposits:
     - COREDEP
-  business:
+  non_interest_deposits:
     - DEPNIDOM
     - DEPNI
 

@@ -23,3 +23,8 @@ banksuite_financials_last_3y_full.parquet
 
 # Generated outputs
 similar_banks/output/
+banksuite_financials_last_3y_full.csv
+banksuite_financials_last_3y_full_PeerBenchmarks.csv
+banksuite_financials_last_3y_full_PeerBenchmarks.parquet
+Banksuite_3y_Full_Percentiles.csv
+Banksuite_3y_Full_Percentiles_PeerBenchmarks.csv

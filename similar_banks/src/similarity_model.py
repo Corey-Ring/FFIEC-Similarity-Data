@@ -44,10 +44,37 @@ def _fmt_pct(value: float) -> str:
     return f"{float(value) * 100:.1f}%"
 
 
+REQUIRED_DRIVER_FEATURES = [
+    "total_assets",
+    "loan_to_deposit_ratio",
+    "avg_3y_assets_yoy_growth",
+    "loan_mix_cre_pct",
+    "loan_mix_ci_pct",
+    "loan_mix_residential_mortgage_pct",
+    "loan_mix_consumer_pct",
+    "loan_mix_agricultural_pct",
+    "loan_mix_construction_pct",
+    "core_deposits_pct",
+    "non_interest_deposits_pct",
+    "charter_type",
+    "has_holding_company",
+    "specialty_group",
+    "loans_to_assets",
+    "deposits_to_assets",
+    "avg_3y_loans_yoy_growth",
+]
+
+
 @dataclass
 class GutCheckResult:
     passed: bool
     details: str
+
+
+@dataclass
+class SimilarityOutputValidationResult:
+    passed: bool
+    issues: List[str]
 
 
 class SimilarBankRecommender:
@@ -178,7 +205,10 @@ class SimilarBankRecommender:
         for diff, text in lending_diffs[:2]:
             add_reason(max(0.1, 1.0 - min(diff / 0.30, 1.0)), text)
 
-        for label, feat in [("Retail deposits", "deposit_mix_retail_pct"), ("Business deposits", "deposit_mix_business_pct")]:
+        for label, feat in [
+            ("core deposits", "core_deposits_pct"),
+            ("non-interest deposits", "non_interest_deposits_pct"),
+        ]:
             a = subject.get(feat)
             b = peer.get(feat)
             if pd.notna(a) and pd.notna(b):
@@ -187,7 +217,7 @@ class SimilarBankRecommender:
                 significance = min(1.0, max(avg_share / 0.20, 0.25))
                 add_reason(
                     max(0.1, 1.0 - min((diff / significance) / 0.25, 1.0)),
-                    f"Similar {label.lower()} mix ({_fmt_pct(float(a))} vs {_fmt_pct(float(b))})",
+                    f"Similar {label} share ({_fmt_pct(float(a))} vs {_fmt_pct(float(b))})",
                 )
 
         if geo_diag["market_overlap"] >= overlap_threshold:
@@ -355,6 +385,56 @@ def spot_check(similar_df: pd.DataFrame, query: str | int) -> pd.DataFrame:
 
     q = str(query).strip().upper()
     return similar_df.loc[similar_df["subject_name"].str.upper().str.contains(q, na=False)].copy()
+
+
+def validate_similarity_output(
+    similar_df: pd.DataFrame, expected_top_n: int | None = None
+) -> SimilarityOutputValidationResult:
+    required_cols = {
+        "subject_idrssd",
+        "similar_rank",
+        "similar_idrssd",
+        "similarity_score",
+    }
+    issues: List[str] = []
+    missing_cols = sorted(required_cols.difference(similar_df.columns))
+    if missing_cols:
+        issues.append(f"Missing required similarity output columns: {', '.join(missing_cols)}")
+        return SimilarityOutputValidationResult(passed=False, issues=issues)
+
+    if similar_df.empty:
+        issues.append("Similarity output is empty.")
+        return SimilarityOutputValidationResult(passed=False, issues=issues)
+
+    if (similar_df["subject_idrssd"] == similar_df["similar_idrssd"]).any():
+        issues.append("Similarity output contains self-peers.")
+
+    duplicate_pairs = similar_df.duplicated(["subject_idrssd", "similar_idrssd"]).sum()
+    if duplicate_pairs:
+        issues.append(f"Similarity output contains {int(duplicate_pairs)} duplicate subject/peer pairs.")
+
+    per_subject = similar_df.groupby("subject_idrssd", sort=False)
+    if expected_top_n is not None:
+        count_mismatches = per_subject.size()
+        count_mismatches = count_mismatches.loc[count_mismatches != expected_top_n]
+        if not count_mismatches.empty:
+            issues.append(
+                f"{len(count_mismatches)} subject(s) do not have the expected peer count of {expected_top_n}."
+            )
+
+    invalid_rank_subjects = 0
+    for _, group in per_subject:
+        ranks = sorted(group["similar_rank"].astype(int).tolist())
+        expected_count = expected_top_n if expected_top_n is not None else len(ranks)
+        expected_ranks = list(range(1, expected_count + 1))
+        if ranks != expected_ranks:
+            invalid_rank_subjects += 1
+    if invalid_rank_subjects:
+        issues.append(
+            f"{invalid_rank_subjects} subject(s) have non-contiguous or duplicated similarity ranks."
+        )
+
+    return SimilarityOutputValidationResult(passed=not issues, issues=issues)
 
 
 def gut_check_wells(similar_df: pd.DataFrame) -> GutCheckResult:
